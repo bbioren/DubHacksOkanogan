@@ -1,0 +1,8 @@
+body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin: 0; }
+.container { max-width: 800px; margin: 2rem auto; padding: 1rem; }
+.title { font-size: 1.75rem; margin-bottom: 0.75rem }
+.input { width: 100%; min-height: 120px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 6px }
+.btn { background: #16a34a; color: white; padding: 0.5rem 1rem; margin-top: 0.5rem; border: none; border-radius: 6px; cursor: pointer }
+.results { margin-top: 1rem; }
+pre { background: #f3f4f6; padding: 0.75rem; border-radius: 6px; white-space: pre-wrap }
+.error { color: red }
