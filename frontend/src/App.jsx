@@ -3,10 +3,11 @@ import React, { useState } from 'react'
 function App() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState(null)
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
   const runGeneBot = async () => {
     try {
-      const res = await fetch('http://localhost:8000/run_genebot', {
+      const res = await fetch(`${API_BASE}/run_genebot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query }),
