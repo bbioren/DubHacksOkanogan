@@ -1,4 +1,4 @@
-# genebot_streamlit.py
+# genebot_streamlit_full.py
 import ssl
 import certifi
 from Bio import Entrez
@@ -15,17 +15,29 @@ Entrez.email = "ben.bioren@gmail.com"
 ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
 
 # -----------------------------
-# PRELOADED APPLE GENOME SNIPPETS
+# PRELOADED APPLE GENOME SNIPPETS (richer)
 # -----------------------------
 PRELOADED_ABSTRACTS = {
     "Wood flexibility": """
-Genes involved in secondary cell wall biosynthesis, lignin and cellulose metabolism, and regulatory transcription factors (MYB, NAC) influence branch strength and flexibility in apple trees. Modifications in lignin biosynthesis can alter rigidity and drooping behavior.
+Genes involved in secondary cell wall biosynthesis: Lignin biosynthesis genes (CCR, CAD), Cellulose Synthase genes (CESA), transcription factors MYB46, NAC. Alterations in these genes modulate wood rigidity and flexibility. CRISPR upregulation increases rigidity, knockout/downregulation increases flexibility.
 """,
     "Drooping branches": """
-Weeping habit in apple trees is linked to auxin transport and cell wall-modifying enzymes. Genes like PIN-FORMED (PIN) auxin transporters and expansins contribute to branch angle and drooping tendencies.
+Genes affecting branch angle and weeping habit: PIN-FORMED (PIN) auxin transporters, EXPANSINs, TIR1 auxin receptor, LAZY1. Modifying these genes changes branch orientation and drooping.
 """,
     "Weeping habit": """
-Regulation of branch orientation in apple trees is influenced by gravitropism-related genes and cytoskeletal regulators. Alterations in these genes can produce drooping or weeping forms.
+Genes regulating branch gravitropism and orientation: LAZY1, TAC1, cytoskeletal regulators. CRISPR edits can induce or reduce weeping forms.
+""",
+    "Annual fruiting": """
+Genes controlling flowering and fruiting cycles: FT (Flowering Locus T), TFL1, SOC1, AP1, LFY. CRISPR upregulation promotes yearly fruiting; knockouts can delay flowering.
+""",
+    "Fruit size": """
+Genes controlling fruit growth: Cell cycle regulators (CYCD3, CYCB1), Auxin response factors (ARF), Gibberellin pathway genes (GA20ox, GA3ox). Modulating these can increase or reduce fruit size.
+""",
+    "Sweetness": """
+Sugar metabolism genes: Sucrose Synthase (SUS), Invertases (INV), Hexose Transporters (HT). Upregulation increases sugar accumulation; knockouts decrease sweetness.
+""",
+    "Disease resistance": """
+Resistance genes: R-genes (NBS-LRR family), Pathogenesis-Related proteins (PR1, PR5), WRKY transcription factors. CRISPR can enhance or modify resistance.
 """
 }
 
@@ -48,15 +60,30 @@ def extract_traits(user_query):
     return [kw.strip() for kw in response.text.split(",") if kw.strip()]
 
 def summarize_genes(abstracts, traits):
-    prompt = f"""
-    You are a plant bioinformatics assistant. Given the following abstracts, 
-    list genes or gene families relevant to these traits: {traits}.
-    For each gene, summarize its known function and suggest a potential CRISPR edit 
-    (knockout, upregulation, promoter edit, etc.).
-
-    Abstracts:
-    {abstracts}
     """
+    Summarize candidate genes and suggest CRISPR edits.
+    Fallback if abstracts are sparse.
+    """
+    if abstracts.strip() in ["", "No abstracts found."]:
+        # Fallback: ask Gemini directly to suggest genes for the traits
+        prompt = f"""
+        You are a plant genetics expert. For each apple tree trait below, suggest 2-5 relevant genes or gene families,
+        explain their function, and suggest potential CRISPR edits (knockout, upregulation, promoter edit, etc.).
+
+        Traits:
+        {traits}
+        """
+    else:
+        prompt = f"""
+        You are a plant bioinformatics assistant. Given the following abstracts, 
+        list genes or gene families relevant to these traits: {traits}.
+        For each gene, summarize its known function and suggest a potential CRISPR edit 
+        (knockout, upregulation, promoter edit, etc.).
+
+        Abstracts:
+        {abstracts}
+        """
+
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=prompt
@@ -66,19 +93,24 @@ def summarize_genes(abstracts, traits):
 # -----------------------------
 # PUBMED SEARCH
 # -----------------------------
-def search_pubmed(keywords, max_results=5, truncate_chars=500):
+def search_pubmed(keywords, max_results=5):
     collected_abstracts = []
 
     for kw in keywords:
-        query = f"{kw} AND apple"
-        handle = Entrez.esearch(db="pubmed", term=query, retmax=max_results)
-        ids = Entrez.read(handle)["IdList"]
-        if ids:
-            handle = Entrez.efetch(db="pubmed", id=",".join(ids), rettype="abstract", retmode="text")
-            text = handle.read()
-            collected_abstracts.append(text[:truncate_chars])
-        elif kw in PRELOADED_ABSTRACTS:
-            collected_abstracts.append(PRELOADED_ABSTRACTS[kw][:truncate_chars])
+        query = f"{kw} AND apple malus domestica"
+        try:
+            handle = Entrez.esearch(db="pubmed", term=query, retmax=max_results)
+            ids = Entrez.read(handle)["IdList"]
+            if ids:
+                handle = Entrez.efetch(db="pubmed", id=",".join(ids), rettype="abstract", retmode="text")
+                text = handle.read()
+                collected_abstracts.append(text)
+            elif kw in PRELOADED_ABSTRACTS:
+                collected_abstracts.append(PRELOADED_ABSTRACTS[kw])
+        except Exception as e:
+            # fallback to preloaded abstracts if PubMed fails
+            if kw in PRELOADED_ABSTRACTS:
+                collected_abstracts.append(PRELOADED_ABSTRACTS[kw])
 
     if not collected_abstracts:
         return "No abstracts found."
@@ -88,13 +120,15 @@ def search_pubmed(keywords, max_results=5, truncate_chars=500):
 # STREAMLIT UI
 # -----------------------------
 st.set_page_config(page_title="Apple GeneBot", layout="wide")
-st.title("🍏 Apple GeneBot")
+st.title("🍏 Apple GeneBot (Hackathon Version)")
+
 st.write(
     """
-    Enter desired apple tree traits in natural language, and GeneBot will:
+    Enter desired apple tree traits in natural language. GeneBot will:
     1. Extract traits.
-    2. Search PubMed and preloaded literature.
+    2. Search PubMed + preloaded literature.
     3. Suggest candidate genes and potential CRISPR edits.
+    If no literature is found, it will generate genes directly from the traits.
     """
 )
 
@@ -113,7 +147,7 @@ if st.button("Run GeneBot"):
 
             with st.spinner("Searching PubMed and preloaded literature..."):
                 abstracts = search_pubmed(traits)
-            st.text_area("Abstracts (truncated)", abstracts, height=300)
+            st.text_area("Abstracts (full)", abstracts, height=300)
 
             with st.spinner("Summarizing genes with Gemini..."):
                 summary = summarize_genes(abstracts, traits)

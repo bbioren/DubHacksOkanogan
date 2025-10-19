@@ -1,7 +1,7 @@
 from google import genai
 
 from Bio import Entrez
-Entrez.email = "your_email@example.com"
+Entrez.email = "ben.bioren@gmail.com"
 
 
 # The client gets the API key from the environment variable `GEMINI_API_KEY`.
@@ -37,3 +37,23 @@ def search_pubmed(keywords, max_results=5):
     if not ids: return []
     handle = Entrez.efetch(db="pubmed", id=",".join(ids), rettype="abstract", retmode="text")
     return handle.read()
+
+
+def summarize_genes(abstracts, traits):
+    prompt = f"""
+    You are a plant bioinformatics assistant. Given the following abstracts, 
+    list genes or gene families relevant to these traits: {traits}.
+    For each, summarize its known function and suggest a potential CRISPR edit (knockout, upregulation, promoter edit, etc.).
+
+    Abstracts:
+    {abstracts}
+    """
+    response = model.generate_content(prompt)
+    return response.text
+
+
+def gene_bot(query):
+    traits = extract_traits(query)
+    abstracts = search_pubmed(traits)
+    summary = summarize_genes(abstracts, traits)
+    return summary
